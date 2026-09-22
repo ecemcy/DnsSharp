@@ -41,7 +41,8 @@ public sealed class UdpDnsTransport : IDnsTransport
             using var timeoutCts = new CancellationTokenSource(context.Timeout);
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(timeoutCts.Token, cancellationToken);
 
-            await udp.SendAsync(context.RequestBytes, context.RequestBytes.Length, host, port, linkedCts.Token).ConfigureAwait(false);
+            udp.Connect(host, port);
+            await udp.SendAsync(context.RequestBytes, context.RequestBytes.Length).ConfigureAwait(false);
             var result = await udp.ReceiveAsync(linkedCts.Token).ConfigureAwait(false);
 
             var duration = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
