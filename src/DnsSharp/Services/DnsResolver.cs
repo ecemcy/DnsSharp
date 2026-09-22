@@ -117,8 +117,28 @@ public sealed class DnsResolver : IDnsResolver
                     {
                         if (_transports.TryGetValue("tcp", out var tcpTransport))
                         {
-                            var tcpPayload = await tcpTransport.QueryAsync(context, cancellationToken).ConfigureAwait(false);
-                            return _codec.Decode(tcpPayload);
+                            var tcpTarget = target;
+                            if (transport.Name.Equals("doh", StringComparison.OrdinalIgnoreCase))
+                            {
+                                tcpTarget = options.Servers.FirstOrDefault() ?? "1.1.1.1:53";
+                            }
+
+                            var tcpContext = new DnsTransportQueryContext
+                            {
+                                Server = tcpTarget,
+                                RequestBytes = bytes,
+                                RequestMessage = request,
+                                Timeout = timeout
+                            };
+
+                            var tcpPayload = await tcpTransport.QueryAsync(tcpContext, cancellationToken).ConfigureAwait(false);
+                            var tcpResponse = _codec.Decode(tcpPayload);
+                            if (tcpResponse.Id != request.Id)
+                            {
+                                throw new InvalidDataException("DNS response ID mismatch on TCP fallback.");
+                            }
+
+                            return tcpResponse;
                         }
                     }
 

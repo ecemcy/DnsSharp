@@ -65,7 +65,12 @@ public sealed class MemoryDnsCache : IDnsCache
 
             if (soa is not null)
             {
-                var soaTtl = Math.Min((int)soa.Minimum, int.MaxValue);
+                var soaAuthorityTtl = response.Authorities
+                    .Where(x => x.Type == RecordType.SOA)
+                    .Select(x => (int)Math.Min(x.Ttl, int.MaxValue))
+                    .FirstOrDefault(x => x > 0);
+                var soaMinimum = (int)Math.Min(soa.Minimum, int.MaxValue);
+                var soaTtl = soaAuthorityTtl > 0 && soaMinimum > 0 ? Math.Min(soaAuthorityTtl, soaMinimum) : Math.Max(soaAuthorityTtl, soaMinimum);
                 return soaTtl > 0 ? soaTtl : _options.NegativeCacheTtlSeconds;
             }
 

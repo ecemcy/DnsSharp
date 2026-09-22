@@ -164,4 +164,3 @@ dotnet build /home/runner/work/DnsSharp/DnsSharp/DnsSharp.slnx -c Release
 
 - Public API includes XML documentation.
 - Wire-format and transport code includes inline comments around DNS-specific behavior.
-- Unit tests are intentionally not included per task scope.
