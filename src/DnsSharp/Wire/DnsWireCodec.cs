@@ -97,7 +97,7 @@ public sealed class DnsWireCodec : IDnsWireCodec
             return;
         }
 
-        var baseCode = (byte)message.ResponseCode & 0x0F;
+        var baseCode = (ushort)message.ResponseCode & 0x0F;
         var extendedCode = (opt.ExtendedResponseCode << 4) | baseCode;
         message.ResponseCode = (ResponseCode)extendedCode;
     }
@@ -107,54 +107,42 @@ public sealed class DnsWireCodec : IDnsWireCodec
         for (var i = 0; i < count && index < bytes.Length; i++)
         {
             var rr = ReadRecord(bytes, ref index);
-            if (rr is null)
-            {
-                break;
-            }
-
             target.Add(rr);
         }
     }
 
-    private static DnsRecord? ReadRecord(ReadOnlySpan<byte> bytes, ref int index)
+    private static DnsRecord ReadRecord(ReadOnlySpan<byte> bytes, ref int index)
     {
-        try
+        var name = ReadDomainName(bytes, ref index);
+        if (index + 10 > bytes.Length)
         {
-            var name = ReadDomainName(bytes, ref index);
-            if (index + 10 > bytes.Length)
-            {
-                return null;
-            }
-
-            var type = (RecordType)ReadUInt16(bytes, ref index);
-            var klass = (DnsClass)ReadUInt16(bytes, ref index);
-            var ttl = ReadUInt32(bytes, ref index);
-            var rdLength = ReadUInt16(bytes, ref index);
-
-            if (index + rdLength > bytes.Length)
-            {
-                rdLength = (ushort)Math.Max(0, bytes.Length - index);
-            }
-
-            var rdataOffset = index;
-            var rdata = bytes.Slice(index, rdLength).ToArray();
-            index += rdLength;
-
-            var data = ParseRecordData(type, klass, rdata, bytes, rdataOffset);
-            return new DnsRecord
-            {
-                Name = name,
-                Type = type,
-                Class = klass,
-                Ttl = ttl,
-                RawData = rdata,
-                Data = data
-            };
+            throw new InvalidDataException("DNS resource record header is truncated.");
         }
-        catch
+
+        var type = (RecordType)ReadUInt16(bytes, ref index);
+        var klass = (DnsClass)ReadUInt16(bytes, ref index);
+        var ttl = ReadUInt32(bytes, ref index);
+        var rdLength = ReadUInt16(bytes, ref index);
+
+        if (index + rdLength > bytes.Length)
         {
-            return null;
+            throw new InvalidDataException("DNS resource record RDATA is truncated.");
         }
+
+        var rdataOffset = index;
+        var rdata = bytes.Slice(index, rdLength).ToArray();
+        index += rdLength;
+
+        var data = ParseRecordData(type, klass, rdata, bytes, rdataOffset);
+        return new DnsRecord
+        {
+            Name = name,
+            Type = type,
+            Class = klass,
+            Ttl = ttl,
+            RawData = rdata,
+            Data = data
+        };
     }
 
     private static object ParseRecordData(RecordType type, DnsClass klass, byte[] rdata, ReadOnlySpan<byte> message, int rdataOffset)

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net;
 using System.Net.Sockets;
 using DnsSharp.Abstractions;
 using DnsSharp.Services;
@@ -41,7 +42,8 @@ public sealed class UdpDnsTransport : IDnsTransport
             using var timeoutCts = new CancellationTokenSource(context.Timeout);
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(timeoutCts.Token, cancellationToken);
 
-            udp.Connect(host, port);
+            var ipAddress = await ResolveAddressAsync(host, linkedCts.Token).ConfigureAwait(false);
+            udp.Client.Connect(new IPEndPoint(ipAddress, port));
             await udp.SendAsync(context.RequestBytes, context.RequestBytes.Length).ConfigureAwait(false);
             var result = await udp.ReceiveAsync(linkedCts.Token).ConfigureAwait(false);
 
@@ -56,5 +58,16 @@ public sealed class UdpDnsTransport : IDnsTransport
             _logger.LogDebug(ex, "UDP DNS query failed for server {Server}", context.Server);
             throw;
         }
+    }
+
+    private static async Task<IPAddress> ResolveAddressAsync(string host, CancellationToken cancellationToken)
+    {
+        if (IPAddress.TryParse(host, out var ipAddress))
+        {
+            return ipAddress;
+        }
+
+        var addresses = await Dns.GetHostAddressesAsync(host, cancellationToken).ConfigureAwait(false);
+        return addresses.FirstOrDefault() ?? throw new SocketException((int)SocketError.HostNotFound);
     }
 }

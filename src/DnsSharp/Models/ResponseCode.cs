@@ -3,7 +3,7 @@ namespace DnsSharp.Models;
 /// <summary>
 /// DNS response codes.
 /// </summary>
-public enum ResponseCode : byte
+public enum ResponseCode : ushort
 {
     NoError = 0,
     FormatError = 1,

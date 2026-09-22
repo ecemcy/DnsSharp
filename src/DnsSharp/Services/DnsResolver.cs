@@ -113,6 +113,8 @@ public sealed class DnsResolver : IDnsResolver
                         throw new InvalidDataException("DNS response ID mismatch.");
                     }
 
+                    ValidateResponseQuestion(response, request.Questions[0]);
+
                     if (response.Truncated &&
                         options.EnableTcpFallback &&
                         transport.Name.Equals("udp", StringComparison.OrdinalIgnoreCase))
@@ -120,10 +122,6 @@ public sealed class DnsResolver : IDnsResolver
                         if (_transports.TryGetValue("tcp", out var tcpTransport))
                         {
                             var tcpTarget = target;
-                            if (transport.Name.Equals("doh", StringComparison.OrdinalIgnoreCase))
-                            {
-                                tcpTarget = options.Servers.FirstOrDefault() ?? "1.1.1.1:53";
-                            }
 
                             var tcpContext = new DnsTransportQueryContext
                             {
@@ -140,6 +138,7 @@ public sealed class DnsResolver : IDnsResolver
                                 throw new InvalidDataException("DNS response ID mismatch on TCP fallback.");
                             }
 
+                            ValidateResponseQuestion(tcpResponse, request.Questions[0]);
                             return tcpResponse;
                         }
                     }
@@ -198,4 +197,24 @@ public sealed class DnsResolver : IDnsResolver
 
         return message;
     }
+
+    private static void ValidateResponseQuestion(DnsMessage response, DnsQuestion expectedQuestion)
+    {
+        if (response.Questions.Count == 0)
+        {
+            return;
+        }
+
+        var received = response.Questions[0];
+        var expectedName = NormalizeName(expectedQuestion.Name);
+        var receivedName = NormalizeName(received.Name);
+        if (!string.Equals(expectedName, receivedName, StringComparison.OrdinalIgnoreCase) ||
+            received.Type != expectedQuestion.Type ||
+            received.Class != expectedQuestion.Class)
+        {
+            throw new InvalidDataException("DNS response question does not match the request.");
+        }
+    }
+
+    private static string NormalizeName(string name) => name.Trim().TrimEnd('.');
 }
