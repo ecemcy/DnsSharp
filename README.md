@@ -1,62 +1,167 @@
 # DnsSharp
 
-DnsSharp is a modern, DI-friendly DNS client library for .NET. It supports UDP/TCP, DNS-over-HTTPS scaffolding, EDNS, DNSSEC record parsing, TTL-aware caching, Polly resilience policies, and OpenTelemetry instrumentation.
+DnsSharp is a modern .NET DNS client library focused on practical resolver behavior with dependency injection support.
 
 ## Features
-- **Dependency Injection** friendly (`IDnsResolver`, `IDnsTransport`, `IDnsCache`)
-- **RFC-aware wire format**: name compression, EDNS OPT, DNSSEC RRs (RRSIG, DNSKEY, DS), and parsing for common RR types
-- **Transports**: UDP, TCP, DoH scaffold
-- **Caching**: TTL-aware in-memory cache with negative caching
-- **Resilience**: Polly retry and circuit-breaker policies configurable via DI
-- **Observability**: OpenTelemetry spans and metrics hooks
-- **Extensible**: Add custom transports, caches, or record parsers
 
-## Quickstart
+- DI-first public API (`IDnsResolver`, `IDnsTransport`, `IDnsCache`)
+- Defensive RFC-aware wire codec:
+  - compressed names
+  - question/answer/authority/additional parsing
+  - EDNS OPT support
+  - safe unknown-record handling with preserved raw bytes
+- Record type support:
+  - Common: `A`, `AAAA`, `NS`, `CNAME`, `SOA`, `PTR`, `MX`, `TXT`, `SRV`, `CAA`
+  - DNSSEC parsing: `DS`, `RRSIG`, `DNSKEY` (parsing only; no cryptographic chain validation)
+- Transports:
+  - UDP DNS
+  - TCP DNS
+  - DNS-over-HTTPS (DoH) via `HttpClientFactory` with configurable endpoint
+- Resolver behavior:
+  - timeout + cancellation token support
+  - deterministic transport order
+  - server fallback
+  - TCP fallback for truncated UDP responses
+- In-memory TTL-aware caching with negative caching
+- Optional Polly-based retry + circuit breaker integration
+- OpenTelemetry hooks (activity source + meter)
 
-### Install
-Add project to your solution or package as a NuGet package.
+## Target framework
 
-### Required NuGet packages
-- `Microsoft.Extensions.DependencyInjection`
+- .NET 8 (`net8.0`)
+
+## Installation
+
+### From source
+
+```bash
+git clone https://github.com/ecemcy/DnsSharp.git
+cd DnsSharp
+dotnet build /home/runner/work/DnsSharp/DnsSharp/DnsSharp.slnx
+```
+
+### Package references used by the library
+
+- `Microsoft.Extensions.Caching.Memory`
+- `Microsoft.Extensions.DependencyInjection.Abstractions`
+- `Microsoft.Extensions.Http`
+- `Microsoft.Extensions.Logging.Abstractions`
 - `Microsoft.Extensions.Options`
-- `Microsoft.Extensions.Logging`
 - `Polly`
-- `Polly.Extensions.Http`
-- `OpenTelemetry`
-- `OpenTelemetry.Exporter.Console` (or your preferred exporter)
-- `OpenTelemetry.Instrumentation.AspNetCore` (optional)
-- `System.Buffers` (if needed)
 
-### DI registration example
+## Project structure
+
+- `/home/runner/work/DnsSharp/DnsSharp/src/DnsSharp/Abstractions` → public contracts
+- `/home/runner/work/DnsSharp/DnsSharp/src/DnsSharp/Models` → query/response/record models
+- `/home/runner/work/DnsSharp/DnsSharp/src/DnsSharp/Options` → configurable options
+- `/home/runner/work/DnsSharp/DnsSharp/src/DnsSharp/Transports` → UDP/TCP/DoH implementations
+- `/home/runner/work/DnsSharp/DnsSharp/src/DnsSharp/Wire` → wire encoder/decoder
+- `/home/runner/work/DnsSharp/DnsSharp/src/DnsSharp/Caching` → in-memory cache
+- `/home/runner/work/DnsSharp/DnsSharp/src/DnsSharp/Services` → resolver orchestration
+- `/home/runner/work/DnsSharp/DnsSharp/src/DnsSharp/Extensions` → DI registration
+
+## Dependency injection setup
+
+```csharp
+using DnsSharp.Extensions;
+using DnsSharp.Models;
+using Microsoft.Extensions.DependencyInjection;
+
+var services = new ServiceCollection();
+
+services
+    .AddDnsSharp(options =>
+    {
+        options.Servers.Clear();
+        options.Servers.Add("1.1.1.1:53");
+        options.Servers.Add("8.8.8.8:53");
+
+        options.TransportOrder.Clear();
+        options.TransportOrder.Add("udp");
+        options.TransportOrder.Add("tcp");
+
+        options.QueryTimeoutMs = 3000;
+        options.EnableCaching = true;
+        options.EnableTcpFallback = true;
+        options.EnableEdns = true;
+    })
+    .AddDnsSharpPolly(polly =>
+    {
+        polly.RetryCount = 2;
+        polly.RetryBaseDelayMs = 150;
+        polly.CircuitBreakerFailures = 8;
+        polly.CircuitBreakerDurationSeconds = 20;
+    })
+    .AddDnsSharpOpenTelemetry(telemetry =>
+    {
+        telemetry.EnableTracing = true;
+        telemetry.EnableMetrics = true;
+    });
+
+var provider = services.BuildServiceProvider();
+var resolver = provider.GetRequiredService<DnsSharp.Abstractions.IDnsResolver>();
+var response = await resolver.QueryAsync("example.com", RecordType.A);
+```
+
+## Resolver usage
+
+```csharp
+var aRecords = response.Answers
+    .Where(r => r.Type == RecordType.A)
+    .Select(r => r.Data)
+    .ToList();
+```
+
+## DNS-over-HTTPS configuration
+
 ```csharp
 services.AddDnsSharp(options =>
 {
-    options.Servers.Add("8.8.8.8");
-    options.Servers.Add("1.1.1.1");
-    options.EnableCaching = true;
-    options.DefaultTtlSeconds = 300;
-    options.QueryTimeoutMs = 2000;
-})
-.AddPollyPolicies(polly =>
-{
-    polly.RetryCount = 3;
-    polly.CircuitBreakerFailures = 5;
-    polly.CircuitBreakerDurationSeconds = 30;
-})
-.AddOpenTelemetry(otel =>
-{
-    otel.ServiceName = "MyService";
-    otel.EnableConsoleExporter = true;
+    options.DohEndpoint = "https://dns.google/dns-query";
+    options.DohUseGet = false; // POST by default
+    options.TransportOrder.Clear();
+    options.TransportOrder.Add("doh");
 });
 ```
 
-### Usage
-```
-var resolver = serviceProvider.GetRequiredService<IDnsResolver>();
-var resp = await resolver.QueryAsync("example.com", RecordType.A);
+## Custom transport/cache extension points
+
+- Implement `IDnsTransport` and register with:
+
+```csharp
+services.AddDnsTransport<MyCustomTransport>();
 ```
 
-### Extending
-- Implement IDnsTransport to add custom transports (DoT, QUIC)
-- Implement IDnsCache to add Redis or IMemoryCache adapters
-- Add record parsers by extending DnsWireFormat parsing switch
+- Implement `IDnsCache` and replace default registration in DI.
+
+## OpenTelemetry integration
+
+DnsSharp emits:
+
+- Activity source: `DnsSharp` (`DnsTelemetryConventions.ActivitySourceName`)
+- Meter: `DnsSharp` (`DnsTelemetryConventions.MeterName`)
+
+Use your own OpenTelemetry setup to subscribe to those names.
+
+## Polly integration notes
+
+Polly is optional. If not configured, DnsSharp uses a no-op resilience strategy.
+
+## Limitations
+
+- DNSSEC record parsing is supported, but cryptographic validation and trust-chain validation are not implemented.
+- The library does not include DNS-over-TLS or DNS-over-QUIC transports.
+- The built-in cache is process-local memory cache.
+
+## Build instructions
+
+```bash
+dotnet restore /home/runner/work/DnsSharp/DnsSharp/DnsSharp.slnx
+dotnet build /home/runner/work/DnsSharp/DnsSharp/DnsSharp.slnx -c Release
+```
+
+## Development notes
+
+- Public API includes XML documentation.
+- Wire-format and transport code includes inline comments around DNS-specific behavior.
+- Unit tests are intentionally not included per task scope.
