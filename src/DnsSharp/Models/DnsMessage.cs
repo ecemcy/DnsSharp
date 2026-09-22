@@ -43,7 +43,7 @@ public sealed class DnsMessage
     /// <summary>
     /// Gets or sets the response code.
     /// </summary>
-    public ResponseCode ResponseCode { get; init; }
+    public ResponseCode ResponseCode { get; set; }
 
     /// <summary>
     /// Gets questions in the message.

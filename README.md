@@ -37,7 +37,7 @@ DnsSharp is a modern .NET DNS client library focused on practical resolver behav
 ```bash
 git clone https://github.com/ecemcy/DnsSharp.git
 cd DnsSharp
-dotnet build /home/runner/work/DnsSharp/DnsSharp/DnsSharp.slnx
+dotnet build DnsSharp.slnx
 ```
 
 ### Package references used by the library
@@ -51,14 +51,14 @@ dotnet build /home/runner/work/DnsSharp/DnsSharp/DnsSharp.slnx
 
 ## Project structure
 
-- `/home/runner/work/DnsSharp/DnsSharp/src/DnsSharp/Abstractions` → public contracts
-- `/home/runner/work/DnsSharp/DnsSharp/src/DnsSharp/Models` → query/response/record models
-- `/home/runner/work/DnsSharp/DnsSharp/src/DnsSharp/Options` → configurable options
-- `/home/runner/work/DnsSharp/DnsSharp/src/DnsSharp/Transports` → UDP/TCP/DoH implementations
-- `/home/runner/work/DnsSharp/DnsSharp/src/DnsSharp/Wire` → wire encoder/decoder
-- `/home/runner/work/DnsSharp/DnsSharp/src/DnsSharp/Caching` → in-memory cache
-- `/home/runner/work/DnsSharp/DnsSharp/src/DnsSharp/Services` → resolver orchestration
-- `/home/runner/work/DnsSharp/DnsSharp/src/DnsSharp/Extensions` → DI registration
+- `src/DnsSharp/Abstractions` → public contracts
+- `src/DnsSharp/Models` → query/response/record models
+- `src/DnsSharp/Options` → configurable options
+- `src/DnsSharp/Transports` → UDP/TCP/DoH implementations
+- `src/DnsSharp/Wire` → wire encoder/decoder
+- `src/DnsSharp/Caching` → in-memory cache
+- `src/DnsSharp/Services` → resolver orchestration
+- `src/DnsSharp/Extensions` → DI registration
 
 ## Dependency injection setup
 
@@ -156,8 +156,8 @@ Polly is optional. If not configured, DnsSharp uses a no-op resilience strategy.
 ## Build instructions
 
 ```bash
-dotnet restore /home/runner/work/DnsSharp/DnsSharp/DnsSharp.slnx
-dotnet build /home/runner/work/DnsSharp/DnsSharp/DnsSharp.slnx -c Release
+dotnet restore DnsSharp.slnx
+dotnet build DnsSharp.slnx -c Release
 ```
 
 ## Development notes

@@ -77,7 +77,7 @@ public static class ServiceCollectionExtensions
             services.Configure(configure);
         }
 
-        services.AddSingleton<IDnsResilienceStrategy, PollyDnsResilienceStrategy>();
+        services.Replace(ServiceDescriptor.Singleton<IDnsResilienceStrategy, PollyDnsResilienceStrategy>());
         return services;
     }
 

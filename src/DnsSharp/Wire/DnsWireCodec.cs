@@ -81,8 +81,25 @@ public sealed class DnsWireCodec : IDnsWireCodec
         ReadRecordSection(bytes, ref index, anCount, message.Answers);
         ReadRecordSection(bytes, ref index, nsCount, message.Authorities);
         ReadRecordSection(bytes, ref index, arCount, message.Additionals);
+        ApplyExtendedResponseCode(message);
 
         return message;
+    }
+
+    private static void ApplyExtendedResponseCode(DnsMessage message)
+    {
+        var opt = message.Additionals
+            .Select(x => x.Data as OptRecordData)
+            .FirstOrDefault(x => x is not null);
+
+        if (opt is null || opt.ExtendedResponseCode == 0)
+        {
+            return;
+        }
+
+        var baseCode = (byte)message.ResponseCode & 0x0F;
+        var extendedCode = (opt.ExtendedResponseCode << 4) | baseCode;
+        message.ResponseCode = (ResponseCode)extendedCode;
     }
 
     private static void ReadRecordSection(ReadOnlySpan<byte> bytes, ref int index, int count, ICollection<DnsRecord> target)

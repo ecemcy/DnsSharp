@@ -113,7 +113,9 @@ public sealed class DnsResolver : IDnsResolver
                         throw new InvalidDataException("DNS response ID mismatch.");
                     }
 
-                    if (response.Truncated && options.EnableTcpFallback && !transport.Name.Equals("tcp", StringComparison.OrdinalIgnoreCase))
+                    if (response.Truncated &&
+                        options.EnableTcpFallback &&
+                        transport.Name.Equals("udp", StringComparison.OrdinalIgnoreCase))
                     {
                         if (_transports.TryGetValue("tcp", out var tcpTransport))
                         {
